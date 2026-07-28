@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+hot-topics-reports/
+topics.json
+analysis.json
+scored.json
+minsheng.json

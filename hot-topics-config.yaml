@@ -1,0 +1,116 @@
+# ============================================
+# 行业热点选题追踪 - 真实账号配置（黑龙江卫视矩阵）
+# 支持多账号：accounts 为账号列表，每个账号独立评分与选题推荐
+# 修改本文件即可调整账号定位；无需 PyYAML，脚本用内置解析器读取
+# ============================================
+
+# 元信息（可选）
+report_metadata:
+  version: "2.0"
+  owner: "黑龙江卫视新媒体矩阵"
+  updated: "2026-07-27"
+
+# 账号列表（核心字段）
+accounts:
+  - name: "抖音黑龙江卫视"
+    douyin_id: "1606895855"
+    douyin_url: "https://v.douyin.com/KeQYMvIoRlQ/"
+    platform: "抖音"
+    niche: "黑龙江本地资讯 / 文旅 / 政务民生"
+    sub_niches:
+      - "黑龙江旅游"
+      - "黑龙江美食"
+      - "城市名片"
+      - "民生政策解读"
+    tone: "权威亲切，接地气，有温度"
+    target_audience:
+      age_range: "18-55岁"
+      gender: "男女均衡"
+      interests:
+        - "黑龙江"
+        - "旅游"
+        - "美食"
+        - "本地生活"
+        - "家乡变化"
+      pain_points:
+        - "不了解家乡的新变化"
+        - "想找黑龙江好玩好吃的地方"
+        - "看不懂政策对生活的影响"
+
+  - name: "抖音这就是黑龙江"
+    douyin_id: "lomgshizyh"
+    douyin_url: "https://v.douyin.com/nXQOWIsYGGk/"
+    platform: "抖音"
+    niche: "黑龙江文旅宣传 / 城市品牌塑造"
+    sub_niches:
+      - "城市风光"
+      - "冰雪旅游"
+      - "非遗文化"
+      - "宝藏打卡地"
+    tone: "年轻化、有网感、强种草"
+    target_audience:
+      age_range: "18-35岁"
+      gender: "偏女性"
+      interests:
+        - "旅行"
+        - "摄影"
+        - "种草"
+        - "短视频"
+      pain_points:
+        - "不知道黑龙江有哪些宝藏地"
+        - "想拍出有质感的家乡内容"
+
+# 内容偏好（多账号共用，可按账号单独覆盖）
+content_preferences:
+  formats:
+    - "短视频"
+    - "图文"
+  avg_length: "30-60秒短视频 / 800字图文"
+  posting_frequency: "日更"
+  avoid_topics:
+    - "政治敏感"
+    - "低俗娱乐"
+    - "未经核实的传闻"
+    - "地域对立"
+
+# 过往爆款数据（用于校准评分与选题方向，可选）
+past_viral_content:
+  - title: "零下30度的黑龙江，美到不像话"
+    views: "500w+"
+    likes: "20w+"
+    platform: "抖音"
+    topic: "黑龙江风光"
+    why_viral: "强视觉冲击 + 地域自豪感 + 适合转发"
+
+# 竞品账号（用于差异化分析，可选）
+competitors:
+  - name: "其它省级文旅官号"
+    platform: "抖音"
+    strength: "风光素材丰富，更新稳定"
+    weakness: "同质化严重，缺乏人物故事与网感"
+  - name: "本地生活达人"
+    platform: "抖音"
+    strength: "接地气，互动高"
+    weakness: "覆盖面窄，缺少官方权威视角"
+
+# 报告设置
+# 说明：本配置 threshold 默认设为 0，即「不按分数硬过滤」，始终输出每个账号的 Top N 选题（由 max_topics 控制）。
+# 原因：实时全国热榜与「黑龙江本地/文旅」赛道多数不直接命中，若硬卡 60 分会得到空报告。
+#       报告内已按六维评分与综合评级清晰标注匹配强度，便于「借势」选题。
+report_settings:
+  output_dir: "./hot-topics-reports"
+  max_topics: 10
+  min_viral_score: 0
+  include_suggestions: true
+  language: "zh-CN"
+  public_url: ""  # 云端由 workflow 的 REPORT_PUBLIC_URL 环境变量自动注入（GitHub Pages 地址）
+
+# 推送设置（报告生成后自动推送到企业微信，通过群机器人 Webhook，完全免费、无需实名）
+# 说明：enabled=true 时，run_report.py 会把报告摘要以 markdown 形式 POST 到企业微信群机器人 Webhook，消息进入该企业微信群。
+# ⚠️ 云端版本：webhook 不写入本文件（公开仓库泄露风险）。
+# 由 GitHub Actions 的 Secret「WECOM_WEBHOOK」通过环境变量注入，脚本会优先读取环境变量。
+push:
+  enabled: true
+  type: "wecom"
+  webhook: ""  # 留空，由环境变量 WECOM_WEBHOOK 注入
+  top_n: 3

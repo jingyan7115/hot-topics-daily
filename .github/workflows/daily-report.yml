@@ -1,0 +1,52 @@
+name: 每日热点选题报告
+
+on:
+  schedule:
+    # GitHub 的 cron 用 UTC 时间；00:15 UTC = 北京时间 08:15。
+    # 高峰期可能延迟 5-20 分钟，所以提前一点，让实际推送时间落在 8:30 左右。
+    - cron: "15 0 * * *"
+  workflow_dispatch: {}  # 支持手动触发，方便随时测试
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 计算 GitHub Pages 公网链接
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          echo "REPORT_PUBLIC_URL=https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO_NAME}/" >> "$GITHUB_ENV"
+
+      - name: 生成报告并推送企业微信
+        env:
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+        run: |
+          python scripts/run_report.py --workdir .
+
+      - name: 上传报告为 Pages 产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: hot-topics-reports
+
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
