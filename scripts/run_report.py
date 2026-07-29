@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import json
+import time
 import subprocess
 import argparse
 import urllib.parse
@@ -432,6 +433,26 @@ def _truncate_wecom(text, limit=4000):
     return truncated + note
 
 
+def _http_post(url, data, headers, timeout=30, retries=4, backoff=8):
+    """带重试的 POST（应对 GitHub 运行器到国内 API 的偶发超时）。
+
+    返回 (resp_dict, ok)。ok=False 时 resp_dict 含 {'__error__': '...'}。
+    """
+    last = None
+    for attempt in range(1, retries + 1):
+        req = Request(url, data=data, headers=headers)
+        try:
+            with urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8", "ignore")), True
+        except (URLError, HTTPError) as e:
+            last = e
+            if attempt < retries:
+                print(f"[RETRY] 推送第{attempt}次失败({repr(e)[:80]})，{backoff}s 后重试",
+                      file=sys.stderr)
+                time.sleep(backoff)
+    return {"__error__": repr(last)[:200]}, False
+
+
 def push_report(push_cfg, title, content):
     """按配置推送（支持 wecom / pushplus / serverchan）。
     content 已是最终格式：pushplus 传 HTML，wecom/serverchan 传 Markdown。
@@ -445,20 +466,16 @@ def push_report(push_cfg, title, content):
             return
         payload = {"msgtype": "markdown", "markdown": {"content": _truncate_wecom(content)}}
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        req = Request(webhook, data=data,
-                      headers={"Content-Type": "application/json; charset=utf-8",
-                               "User-Agent": "hot-topics-skill"})
-        try:
-            with urlopen(req, timeout=20) as r:
-                resp = json.loads(r.read().decode("utf-8", "ignore"))
-            if resp.get("errcode") == 0:
-                print("[PUSH] 企业微信机器人推送成功", file=sys.stderr)
-            else:
-                print(f"[WARN] 企业微信机器人推送返回错误：{resp}", file=sys.stderr)
-        except (URLError, HTTPError) as e:
-            print(f"[WARN] 企业微信机器人推送失败：{repr(e)[:200]}", file=sys.stderr)
-        except Exception as e:
-            print(f"[WARN] 企业微信机器人推送异常：{repr(e)[:200]}", file=sys.stderr)
+        headers = {"Content-Type": "application/json; charset=utf-8",
+                   "User-Agent": "hot-topics-skill"}
+        resp, ok = _http_post(webhook, data, headers, timeout=30, retries=4, backoff=8)
+        if ok and resp.get("errcode") == 0:
+            print("[PUSH] 企业微信机器人推送成功", file=sys.stderr)
+        elif not ok:
+            print(f"[WARN] 企业微信机器人推送最终失败（重试耗尽）：{resp.get('__error__')}",
+                  file=sys.stderr)
+        else:
+            print(f"[WARN] 企业微信机器人推送返回错误：{resp}", file=sys.stderr)
     elif ptype == "pushplus":
         token = push_cfg.get("token", "")
         if not token:
@@ -470,20 +487,15 @@ def push_report(push_cfg, title, content):
         if topic:
             payload["topic"] = topic
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        req = Request(url, data=data,
-                      headers={"Content-Type": "application/json; charset=utf-8",
-                               "User-Agent": "hot-topics-skill"})
-        try:
-            with urlopen(req, timeout=20) as r:
-                resp = json.loads(r.read().decode("utf-8", "ignore"))
-            if resp.get("code") == 200:
-                print(f"[PUSH] PushPlus 推送成功：{resp.get('msg', '')}", file=sys.stderr)
-            else:
-                print(f"[WARN] PushPlus 推送返回错误：{resp}", file=sys.stderr)
-        except (URLError, HTTPError) as e:
-            print(f"[WARN] PushPlus 推送失败：{repr(e)[:200]}", file=sys.stderr)
-        except Exception as e:
-            print(f"[WARN] PushPlus 推送异常：{repr(e)[:200]}", file=sys.stderr)
+        headers = {"Content-Type": "application/json; charset=utf-8",
+                   "User-Agent": "hot-topics-skill"}
+        resp, ok = _http_post(url, data, headers, timeout=30, retries=4, backoff=8)
+        if ok and resp.get("code") == 200:
+            print(f"[PUSH] PushPlus 推送成功：{resp.get('msg', '')}", file=sys.stderr)
+        elif not ok:
+            print(f"[WARN] PushPlus 推送最终失败：{resp.get('__error__')}", file=sys.stderr)
+        else:
+            print(f"[WARN] PushPlus 推送返回错误：{resp}", file=sys.stderr)
     elif ptype == "serverchan":
         sendkey = push_cfg.get("sendkey", "")
         if not sendkey:
@@ -491,18 +503,14 @@ def push_report(push_cfg, title, content):
             return
         url = f"https://sctapi.ftqq.com/{sendkey}.send"
         data = urllib.parse.urlencode({"title": title, "desp": content}).encode("utf-8")
-        req = Request(url, data=data, headers={"User-Agent": "hot-topics-skill"})
-        try:
-            with urlopen(req, timeout=20) as r:
-                resp = json.loads(r.read().decode("utf-8", "ignore"))
-            if resp.get("code") == 0:
-                print(f"[PUSH] Server酱推送成功：{resp.get('message', '')}", file=sys.stderr)
-            else:
-                print(f"[WARN] Server酱推送返回错误：{resp}", file=sys.stderr)
-        except (URLError, HTTPError) as e:
-            print(f"[WARN] Server酱推送失败：{repr(e)[:200]}", file=sys.stderr)
-        except Exception as e:
-            print(f"[WARN] Server酱推送异常：{repr(e)[:200]}", file=sys.stderr)
+        headers = {"User-Agent": "hot-topics-skill"}
+        resp, ok = _http_post(url, data, headers, timeout=30, retries=4, backoff=8)
+        if ok and resp.get("code") == 0:
+            print(f"[PUSH] Server酱推送成功：{resp.get('message', '')}", file=sys.stderr)
+        elif not ok:
+            print(f"[WARN] Server酱推送最终失败：{resp.get('__error__')}", file=sys.stderr)
+        else:
+            print(f"[WARN] Server酱推送返回错误：{resp}", file=sys.stderr)
     else:
         print(f"[WARN] 不支持的 push.type={ptype}，跳过推送", file=sys.stderr)
 
