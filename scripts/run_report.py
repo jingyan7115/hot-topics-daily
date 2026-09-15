@@ -806,12 +806,20 @@ def main():
     print(f"HTML 入口已生成：{index_path}", file=sys.stderr)
 
     # 微信推送（配置 push.enabled=true 时，把报告摘要推送出去）
+    # ⚠️ 每天只推一次：正式推送由外部 cron-job.org 走 workflow_dispatch 点火（北京时间 08:15）负责。
+    #    线上 workflow 仍残留 GitHub 自带 schedule（UTC 00:15，GitHub 排期常延迟到中午/下午执行），
+    #    过去正是它造成「下午又发一次」。因此 schedule 事件只生成报告并更新 Pages，不再推送企业微信。
     push_cfg = cfg.get("push", {})
     if push_cfg.get("enabled"):
-        pm_md = build_push_markdown(scored, cfg, html_path, workdir, minsheng)
-        ptype = (push_cfg.get("type") or "pushplus").lower()
-        content = markdown_to_html(pm_md) if ptype == "pushplus" else pm_md
-        push_report(push_cfg, f"🔥 热点选题日报 {datetime.now(CST).strftime('%Y-%m-%d')}", content)
+        gh_event = os.environ.get("GITHUB_EVENT_NAME", "")
+        if gh_event == "schedule":
+            print("[PUSH] 本次为 GitHub schedule 事件（冗余调度），已跳过企业微信推送，避免一天两次；"
+                  "报告与 GitHub Pages 仍会正常更新。", file=sys.stderr)
+        else:
+            pm_md = build_push_markdown(scored, cfg, html_path, workdir, minsheng)
+            ptype = (push_cfg.get("type") or "pushplus").lower()
+            content = markdown_to_html(pm_md) if ptype == "pushplus" else pm_md
+            push_report(push_cfg, f"🔥 热点选题日报 {datetime.now(CST).strftime('%Y-%m-%d')}", content)
     # 输出摘要到 stdout：TOP3 选题
     print("=== 报告摘要 ===")
     for acc in scored.get("accounts", []):
