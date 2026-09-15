@@ -1,11 +1,9 @@
 name: 每日热点选题报告
 
 on:
-  schedule:
-    # GitHub 的 cron 用 UTC 时间；00:15 UTC = 北京时间 08:15。
-    # 高峰期可能延迟 5-20 分钟，所以提前一点，让实际推送时间落在 8:30 左右。 (re-registered 2026-07-29)
-    - cron: "15 0 * * *"
-  workflow_dispatch: {}  # 支持手动触发，方便随时测试
+  # 定时由外部 cron-job.org 触发（GitHub 自带 cron 不可靠，已弃用）。
+  # cron-job.org 每天 北京时间 08:15 调用本 workflow 的 dispatch 接口来点火。
+  workflow_dispatch: {}  # 保留手动触发入口，方便随时测试
 
 permissions:
   contents: read
